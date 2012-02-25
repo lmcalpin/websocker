@@ -1,0 +1,21 @@
+= websocker
+
+simple (incomplete) websocket client implemtation...
+
+sample usage:
+
+    ws = Websocker::Client.new(:host => "localhost", :port => 8887)
+    ws.connect
+    # listen for messages from the server
+    ws.on_message do |msg|
+      puts "Received: #{msg}"
+      # send a message
+      ws.send("This is message ##{msgid}")
+    end
+    ws.on_closed do
+      puts "Closed!"
+    end
+    # start listening
+    thrd = ws.listen
+    # wait until the connection is closed
+    thrd.join

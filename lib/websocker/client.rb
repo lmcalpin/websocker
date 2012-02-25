@@ -40,7 +40,7 @@ module Websocker
       @loop = Thread.new do
         while @connected
           message = read
-          puts "listen: #{message}"
+          @logger.debug "received: #{message}"
           @on_message.call(message) unless @on_message.nil?
         end
       end
@@ -77,8 +77,6 @@ module Websocker
 
       @sock.write(data)
       @sock.flush
-
-      puts "Writing #{byte1}, #{byte2}, #{data}"
     end
 
     def close
@@ -180,7 +178,7 @@ module Websocker
       end
 
       if mask then
-        @logger.debugmask
+        @logger.debug mask
         masking_key = @sock.read(4).unpack("C*")
       end
 
