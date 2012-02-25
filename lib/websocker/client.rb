@@ -59,10 +59,11 @@ module Websocker
       write_byte(byte1)
 
       # write length
-      if data.size <= 125
-        byte2 = data.size
+      length = data.size
+      if length <= 125
+        byte2 = length
         write_byte(byte2)
-      elsif data.size <= 65535
+      elsif length <= 65535
         byte2 = 0b10000000 | 126
         write_byte(byte2)
         # write length in next two bytes
@@ -146,7 +147,7 @@ module Websocker
     # rsv1, rsv2, rsv3: 1 bit, reserved, usually zero unless used by websocket extensions
     # opcode: 4 bits; 0 continuation, 1 text, 2 bin, 8 closed
     # mask: 1 bit, indicates payload is masked
-    # len: 7 bits, payload length
+    # len: 7 bits, payload length, may also use next 2 bytes if len==126, or next 8 bytes if len==127
     # payload: variable
     def read_frame
       byte = read_and_unpack_byte

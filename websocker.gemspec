@@ -6,7 +6,7 @@ Gem::Specification.new do |s|
   s.name        = "websocker"
   s.version     = Websocker::VERSION
   s.authors     = ["Lawrence Mcalpin"]
-  s.email       = ["lmcalpin+turntable_api@gmail.com"]
+  s.email       = ["lmcalpin+websocker@gmail.com"]
   s.homepage    = ""
   s.summary     = %q{Library for communicating with Websocket servers.}
   s.description = %q{A simple implementation of a Websocket client.}
