@@ -11,7 +11,6 @@ require "logger"
 module Websocker
   class Client
     class NotConnectedError < RuntimeError; end
-
     class HandshakeNegotiationError < RuntimeError; end
 
     def initialize(opts = {})
@@ -39,11 +38,16 @@ module Websocker
     def listen
       @loop = Thread.new do
         while @connected
-          message = read
-          @logger.debug "received: #{message}"
-          @on_message.call(message) unless @on_message.nil?
+          read_once
         end
       end
+    end
+    
+    def read_once
+      message = read
+      return unless @connected
+      @logger.debug "received: #{message}"
+      @on_message.call(message) unless @on_message.nil?
     end
 
     def on_message(&blk)
@@ -64,17 +68,16 @@ module Websocker
         byte2 = length
         write_byte(byte2)
       elsif length <= 65535
-        byte2 = 0b10000000 | 126
+        byte2 = 126
         write_byte(byte2)
         # write length in next two bytes
         @sock.write [length].pack('n') # 16-bit unsigned
       else
-        byte2 = 0b10000000 | 127
+        byte2 = 127
         write_byte(byte2)
         # write length in next eight bytes
         @sock.write [length].pack('Q') # 64-bit unsigned
       end
-
       @sock.write(data)
       @sock.flush
     end
@@ -82,7 +85,7 @@ module Websocker
     def close
       @logger.debug "Connection closed"
       @connected = false
-      @on_closed unless @on_closed.nil?
+      @on_closed.call unless @on_closed.nil?
     end
 
     private
@@ -200,8 +203,8 @@ module Websocker
     # reads a byte and returns an 8-bit unsigned integer
     def read_and_unpack_byte
       byte = @sock.read(1)
-      @logger.debug "read_and_unpack_byte: #{byte}"
-      byte = byte.unpack('C')[0]
+      raise NotConnectedError if byte.nil?
+      byte = byte.unpack('C')[0] unless byte.nil?
     end
   end
 end
