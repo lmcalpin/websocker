@@ -10,7 +10,7 @@ require "logger"
 # implement a websocket client that speaks the hybi-10 protocol
 module Websocker
   class Client
-    class NotConnectedError < RuntimeError; end
+    class SocketReadError < RuntimeError; end
     class HandshakeNegotiationError < RuntimeError; end
 
     def initialize(opts = {})
@@ -20,14 +20,15 @@ module Websocker
       @path = opts[:path] || "/"
       @connected = false
       @logger = opts[:logger] || Logger.new(STDOUT)
-      @logger.debug "Connecting to #{@host}:#{@port}"
+      @logger.debug "Connecting to #{@host}:#{@port}#{@path}"
     end
 
     def connect
       @sock = TCPSocket.open(@host, @port)
+      @sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
       @connected = true
       key = generateKey
-      @sock.write handshake(key)
+      write handshake(key)
       headers = read_headers
       received_key = headers['Sec-WebSocket-Accept']
       expected_key = expected_security_key_answer(key)
@@ -63,23 +64,29 @@ module Websocker
       write_byte(byte1)
 
       # write length
+      byte2 = 0x80 # mask flag set to true
       length = data.size
       if length <= 125
-        byte2 = length
+        byte2 = byte2 | length
         write_byte(byte2)
       elsif length <= 65535
-        byte2 = 126
+        byte2 = byte2 | 126
         write_byte(byte2)
         # write length in next two bytes
-        @sock.write [length].pack('n') # 16-bit unsigned
+        write [length].pack('n') # 16-bit unsigned
       else
-        byte2 = 127
+        byte2 = byte2 | 127
         write_byte(byte2)
         # write length in next eight bytes
-        @sock.write [length].pack('Q') # 64-bit unsigned
+        write [length].pack('Q') # 64-bit unsigned
       end
-      @sock.write(data)
-      @sock.flush
+      # masking is required from the client to the server
+      masking_key = Array.new(4){ rand(256) }
+      write(masking_key.pack("C*"))
+      masked_data = apply_mask(data, masking_key)
+      # write masked message payload
+      write(masked_data)
+      @logger.debug "wrote: #{data}"
     end
 
     def close
@@ -141,7 +148,7 @@ module Websocker
 
     # write an unsigned byte
     def write_byte(byte)
-      @sock.write [byte].pack("C")
+      write [byte].pack("C")
     end
 
     # fin: 1 bit, indicates this is the final fragment in a message
@@ -181,7 +188,6 @@ module Websocker
       end
 
       if mask then
-        @logger.debug mask
         masking_key = @sock.read(4).unpack("C*")
       end
 
@@ -203,8 +209,13 @@ module Websocker
     # reads a byte and returns an 8-bit unsigned integer
     def read_and_unpack_byte
       byte = @sock.read(1)
-      raise NotConnectedError if byte.nil?
-      byte = byte.unpack('C')[0] unless byte.nil?
+      raise SocketReadError if byte.nil?
+      byte = byte.unpack('C')[0]
+    end
+    
+    def write(data)
+      @sock.write(data)
+      @sock.flush
     end
   end
 end
